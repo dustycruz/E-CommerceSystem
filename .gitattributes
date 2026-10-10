@@ -1,0 +1,27 @@
+# Normalize text files to LF in the repository; Git converts on checkout (core.autocrlf=true).
+* text=auto
+
+# Windows batch files MUST keep CRLF or cmd.exe can misread labels and lines.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Source and config files
+*.cs text diff=csharp
+*.cshtml text
+*.csproj text
+*.slnx text
+*.json text
+*.yaml text
+*.yml text
+*.sql text
+*.md text
+*.http text
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary

@@ -1,0 +1,95 @@
+# =====================================================================
+# E-CommerceSystem - .gitignore
+# Never commit build output, IDE state, logs, or secrets.
+# =====================================================================
+
+# ---------- .NET build output ----------
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+publish/
+artifacts/
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+*.pdb
+*.dll.config
+
+# ---------- Test results / coverage ----------
+[Tt]est[Rr]esult*/
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+coverage*.json
+coverage*.xml
+coverage*.info
+*.trx
+
+# ---------- Visual Studio ----------
+.vs/
+*.user
+*.userosscache
+*.suo
+*.sln.docstates
+*.rsuser
+*.vspscc
+*.vssscc
+*.cache
+*.ncb
+*.opendb
+*.VC.db
+*.VC.VC.opendb
+ipch/
+_ReSharper*/
+*.DotSettings.user
+
+# ---------- VS Code / Rider ----------
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.sln.iml
+
+# ---------- Logs produced by run-all.cmd ----------
+logs/
+*.log
+
+# ---------- Secrets and local overrides (NEVER COMMIT) ----------
+secrets.json
+appsettings.*.local.json
+appsettings.Local.json
+*.pfx
+*.p12
+*.key
+*.pem
+.env
+.env.*
+
+# ---------- Local database files ----------
+*.mdf
+*.ldf
+*.ndf
+*.db
+*.db-shm
+*.db-wal
+
+# ---------- Node (Spectral bonus) ----------
+node_modules/
+npm-debug.log*
+package-lock.json
+
+# ---------- OS files ----------
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# ---------- Postman local exports ----------
+postman/*.local.json
