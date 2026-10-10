@@ -1,0 +1,461 @@
+openapi: 3.0.3
+info:
+  title: ECommerceSystem Payments API
+  version: '1.0'
+  description: |
+    Payment Service of the E-CommerceSystem midterm project. Owns payments (database ECommercePaymentDb).
+
+    Charge is idempotent: orderId is the idempotency key. Charging the same order again returns the
+    existing payment (200) instead of charging twice; a different amount for the same order returns 409.
+    Refund is idempotent too: refunding an already refunded payment returns it unchanged.
+
+    Test cards: 4242424242424242 -> Charged, 4000000000000002 -> Declined.
+    Only the last 4 digits of a card are ever stored.
+
+    Money-safety rules for the admin CRUD endpoints:
+    - PUT only changes Declined payments (a charged or refunded payment is immutable -> 409).
+    - DELETE refuses a Charged payment (refund it first -> 409).
+
+    Conventions:
+    - URI versioning: every path starts with /payments/v1.
+    - Errors are RFC 9457 Problem Details (application/problem+json) with "correlationId" and "traceId".
+    - Correlation: optional X-Correlation-ID request header, echoed in the response header and logs.
+  contact:
+    name: CJ Bello (GitHub CJ-Bello)
+servers:
+  - url: http://localhost:5004
+    description: Local development (HTTP only)
+tags:
+  - name: Payments
+    description: Payment records (CRUD).
+  - name: PaymentOperations
+    description: Charge and refund, used by the Order Service saga.
+paths:
+  /payments/v1/payments:
+    get:
+      tags:
+        - Payments
+      operationId: listPayments
+      summary: List payments
+      description: Newest first.
+      responses:
+        '200':
+          description: The payments (may be empty).
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PaymentResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags:
+        - Payments
+      operationId: createPayment
+      summary: Create a payment record manually (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaymentRequest'
+      responses:
+        '201':
+          description: The payment record was created.
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /payments/v1/payments/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PaymentId'
+    get:
+      tags:
+        - Payments
+      operationId: getPaymentById
+      summary: Get one payment by id
+      responses:
+        '200':
+          description: The payment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      tags:
+        - Payments
+      operationId: updatePayment
+      summary: Correct a Declined payment record (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePaymentRequest'
+      responses:
+        '200':
+          description: The updated payment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags:
+        - Payments
+      operationId: deletePayment
+      summary: Delete a Declined or Refunded payment record (admin)
+      responses:
+        '204':
+          description: The payment record was deleted.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /payments/v1/payments/by-order/{orderId}:
+    get:
+      tags:
+        - Payments
+      operationId: getPaymentByOrderId
+      summary: Get the payment of an order
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          description: Order id (idempotency key).
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The payment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /payments/v1/payments/charge:
+    post:
+      tags:
+        - PaymentOperations
+      operationId: chargePayment
+      summary: Charge a card for an order (idempotent by orderId)
+      description: |
+        201 when a new payment is created (status Charged or Declined).
+        200 when a payment for this orderId already exists with the same amount (no second charge).
+        409 when a payment for this orderId exists with a different amount.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChargePaymentRequest'
+      responses:
+        '200':
+          description: Idempotent replay - the existing payment for this order.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '201':
+          description: A new payment was created. Check status for Charged or Declined.
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /payments/v1/payments/{id}/refund:
+    parameters:
+      - $ref: '#/components/parameters/PaymentId'
+    post:
+      tags:
+        - PaymentOperations
+      operationId: refundPayment
+      summary: Refund a charged payment (idempotent)
+      description: Refunding an already Refunded payment returns it unchanged (200). Refunding a Declined payment returns 409.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefundPaymentRequest'
+      responses:
+        '200':
+          description: The refunded payment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+components:
+  parameters:
+    PaymentId:
+      name: id
+      in: path
+      required: true
+      description: Payment id.
+      schema:
+        type: string
+        format: uuid
+  headers:
+    Location:
+      description: URL of the created payment.
+      schema:
+        type: string
+        format: uri
+  responses:
+    BadRequest:
+      description: The request is invalid. The errors member lists each invalid field.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ValidationProblemDetails'
+    NotFound:
+      description: The payment does not exist.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    Conflict:
+      description: The operation conflicts with the payment state or with an existing payment for the order.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    InternalServerError:
+      description: An unexpected error occurred. Details are logged with the correlation id.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+  schemas:
+    PaymentStatus:
+      type: string
+      enum:
+        - Charged
+        - Declined
+        - Refunded
+    PaymentResponse:
+      type: object
+      required:
+        - id
+        - orderId
+        - amount
+        - currency
+        - cardLast4
+        - status
+        - createdAtUtc
+        - updatedAtUtc
+      properties:
+        id:
+          type: string
+          format: uuid
+        orderId:
+          type: string
+          format: uuid
+        amount:
+          type: number
+          format: decimal
+          example: 4798.00
+        currency:
+          type: string
+          example: PHP
+        cardLast4:
+          type: string
+          example: '4242'
+        status:
+          $ref: '#/components/schemas/PaymentStatus'
+        failureReason:
+          type: string
+          nullable: true
+          example: Card declined by issuer (test card 4000000000000002).
+        correlationId:
+          type: string
+          nullable: true
+        createdAtUtc:
+          type: string
+          format: date-time
+        updatedAtUtc:
+          type: string
+          format: date-time
+        refundedAtUtc:
+          type: string
+          format: date-time
+          nullable: true
+    ChargePaymentRequest:
+      type: object
+      required:
+        - orderId
+        - amount
+        - currency
+        - cardNumber
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        amount:
+          type: number
+          format: decimal
+          minimum: 0.01
+          maximum: 10000000
+          example: 4798.00
+        currency:
+          type: string
+          pattern: '^PHP$'
+          example: PHP
+        cardNumber:
+          type: string
+          pattern: '^[0-9]{16}$'
+          description: Test card number. Never stored; only the last 4 digits are kept.
+          example: '4242424242424242'
+    RefundPaymentRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+          nullable: true
+          example: Saga compensation - failure after payment.
+    CreatePaymentRequest:
+      type: object
+      required:
+        - orderId
+        - amount
+        - currency
+        - cardLast4
+        - status
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        amount:
+          type: number
+          format: decimal
+          minimum: 0.01
+          maximum: 10000000
+          example: 1299.00
+        currency:
+          type: string
+          pattern: '^PHP$'
+          example: PHP
+        cardLast4:
+          type: string
+          pattern: '^[0-9]{4}$'
+          example: '4242'
+        status:
+          $ref: '#/components/schemas/PaymentStatus'
+        failureReason:
+          type: string
+          maxLength: 500
+          nullable: true
+    UpdatePaymentRequest:
+      type: object
+      required:
+        - amount
+        - cardLast4
+      properties:
+        amount:
+          type: number
+          format: decimal
+          minimum: 0.01
+          maximum: 10000000
+          example: 1299.00
+        cardLast4:
+          type: string
+          pattern: '^[0-9]{4}$'
+          example: '0002'
+        failureReason:
+          type: string
+          maxLength: 500
+          nullable: true
+          example: Card declined by issuer (corrected note).
+    ProblemDetails:
+      type: object
+      description: RFC 9457 Problem Details. Extension members correlationId and traceId are always present.
+      properties:
+        type:
+          type: string
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        status:
+          type: integer
+          format: int32
+          nullable: true
+        detail:
+          type: string
+          nullable: true
+        instance:
+          type: string
+          nullable: true
+      additionalProperties: {}
+    ValidationProblemDetails:
+      type: object
+      description: Problem Details for 400 responses. errors maps each invalid field to its messages.
+      properties:
+        type:
+          type: string
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        status:
+          type: integer
+          format: int32
+          nullable: true
+        detail:
+          type: string
+          nullable: true
+        instance:
+          type: string
+          nullable: true
+        errors:
+          type: object
+          nullable: true
+          additionalProperties:
+            type: array
+            items:
+              type: string
+      additionalProperties: {}
