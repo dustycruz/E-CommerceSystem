@@ -1,0 +1,406 @@
+openapi: 3.0.3
+info:
+  title: ECommerceSystem Inventory API
+  version: '1.0'
+  description: |
+    Inventory Service of the E-CommerceSystem midterm project. Owns stock levels and reservations
+    (database ECommerceInventoryDb).
+
+    Reservations are created, committed and released ONLY by RabbitMQ events (order.placed,
+    order.confirmed, order.release-stock). The HTTP API offers full CRUD on stock items and a
+    read-only view of reservations so the saga can be inspected.
+
+    Conventions:
+    - URI versioning: every path starts with /inventory/v1.
+    - Errors are RFC 9457 Problem Details (application/problem+json) with "correlationId" and "traceId".
+    - Correlation: optional X-Correlation-ID request header, echoed in the response header and logs.
+    - Optimistic concurrency: PUT may send the rowVersion (base64) it read; a stale value returns 409.
+  contact:
+    name: Laurence Mirandilla (GitHub LaurenceMirandilla)
+servers:
+  - url: http://localhost:5003
+    description: Local development (HTTP only)
+tags:
+  - name: StockItems
+    description: Create, read, update and delete stock levels per product.
+  - name: Reservations
+    description: Read-only view of saga stock reservations.
+paths:
+  /inventory/v1/stock-items:
+    get:
+      tags:
+        - StockItems
+      operationId: listStockItems
+      summary: List stock items
+      responses:
+        '200':
+          description: All stock items ordered by product id.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StockItemResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags:
+        - StockItems
+      operationId: createStockItem
+      summary: Create a stock item for a product
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStockItemRequest'
+      responses:
+        '201':
+          description: The stock item was created.
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockItemResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /inventory/v1/stock-items/{id}:
+    parameters:
+      - $ref: '#/components/parameters/StockItemId'
+    get:
+      tags:
+        - StockItems
+      operationId: getStockItemById
+      summary: Get one stock item by id
+      responses:
+        '200':
+          description: The stock item.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockItemResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      tags:
+        - StockItems
+      operationId: updateStockItem
+      summary: Replace the stock level of a stock item
+      description: QuantityOnHand can never be set below the currently reserved quantity (409).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateStockItemRequest'
+      responses:
+        '200':
+          description: The updated stock item.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockItemResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags:
+        - StockItems
+      operationId: deleteStockItem
+      summary: Delete a stock item
+      description: Refused with 409 while the product has active (Reserved) reservations.
+      responses:
+        '204':
+          description: The stock item was deleted.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /inventory/v1/stock-items/by-product/{productId}:
+    get:
+      tags:
+        - StockItems
+      operationId: getStockItemByProductId
+      summary: Get the stock item of a catalog product
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          description: Catalog product id.
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+      responses:
+        '200':
+          description: The stock item.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockItemResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /inventory/v1/reservations:
+    get:
+      tags:
+        - Reservations
+      operationId: listReservations
+      summary: List stock reservations
+      description: Newest first. Filter by orderId to inspect one saga.
+      parameters:
+        - name: orderId
+          in: query
+          required: false
+          description: Only reservations of this order.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The reservations (may be empty).
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReservationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+components:
+  parameters:
+    StockItemId:
+      name: id
+      in: path
+      required: true
+      description: Stock item id.
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+  headers:
+    Location:
+      description: URL of the created resource.
+      schema:
+        type: string
+        format: uri
+  responses:
+    BadRequest:
+      description: The request is invalid. The errors member lists each invalid field.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ValidationProblemDetails'
+    NotFound:
+      description: The resource does not exist.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    Conflict:
+      description: Duplicate product, stale rowVersion, quantity below reserved, or active reservations.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    InternalServerError:
+      description: An unexpected error occurred. Details are logged with the correlation id.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+  schemas:
+    StockItemResponse:
+      type: object
+      required:
+        - id
+        - productId
+        - sku
+        - quantityOnHand
+        - quantityReserved
+        - quantityAvailable
+        - rowVersion
+        - updatedAtUtc
+      properties:
+        id:
+          type: integer
+          format: int32
+          example: 8
+        productId:
+          type: integer
+          format: int32
+          example: 8
+        sku:
+          type: string
+          example: SKU-SPK-008
+        quantityOnHand:
+          type: integer
+          format: int32
+          example: 2
+        quantityReserved:
+          type: integer
+          format: int32
+          example: 0
+        quantityAvailable:
+          type: integer
+          format: int32
+          example: 2
+        rowVersion:
+          type: string
+          format: byte
+          description: Base64 concurrency token. Send it back in PUT to detect concurrent changes.
+          example: AAAAAAAAB9E=
+        updatedAtUtc:
+          type: string
+          format: date-time
+    CreateStockItemRequest:
+      type: object
+      required:
+        - productId
+        - sku
+        - quantityOnHand
+      properties:
+        productId:
+          type: integer
+          format: int32
+          minimum: 1
+          example: 9
+        sku:
+          type: string
+          minLength: 3
+          maxLength: 32
+          pattern: '^[A-Z0-9-]+$'
+          example: SKU-TAB-009
+        quantityOnHand:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 1000000
+          example: 30
+    UpdateStockItemRequest:
+      type: object
+      required:
+        - sku
+        - quantityOnHand
+      properties:
+        sku:
+          type: string
+          minLength: 3
+          maxLength: 32
+          pattern: '^[A-Z0-9-]+$'
+          example: SKU-SPK-008
+        quantityOnHand:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 1000000
+          example: 10
+        rowVersion:
+          type: string
+          format: byte
+          nullable: true
+          description: Optional base64 token from a previous GET. When present and stale, the API returns 409.
+    ReservationResponse:
+      type: object
+      required:
+        - id
+        - orderId
+        - productId
+        - quantity
+        - status
+        - createdAtUtc
+      properties:
+        id:
+          type: integer
+          format: int32
+        orderId:
+          type: string
+          format: uuid
+        productId:
+          type: integer
+          format: int32
+        quantity:
+          type: integer
+          format: int32
+        status:
+          $ref: '#/components/schemas/ReservationStatus'
+        createdAtUtc:
+          type: string
+          format: date-time
+        updatedAtUtc:
+          type: string
+          format: date-time
+          nullable: true
+    ReservationStatus:
+      type: string
+      enum:
+        - Reserved
+        - Released
+        - Committed
+    ProblemDetails:
+      type: object
+      description: RFC 9457 Problem Details. Extension members correlationId and traceId are always present.
+      properties:
+        type:
+          type: string
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        status:
+          type: integer
+          format: int32
+          nullable: true
+        detail:
+          type: string
+          nullable: true
+        instance:
+          type: string
+          nullable: true
+      additionalProperties: {}
+    ValidationProblemDetails:
+      type: object
+      description: Problem Details for 400 responses. errors maps each invalid field to its messages.
+      properties:
+        type:
+          type: string
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        status:
+          type: integer
+          format: int32
+          nullable: true
+        detail:
+          type: string
+          nullable: true
+        instance:
+          type: string
+          nullable: true
+        errors:
+          type: object
+          nullable: true
+          additionalProperties:
+            type: array
+            items:
+              type: string
+      additionalProperties: {}
