@@ -24,5 +24,5 @@ Group members:
 
 
 
-The full documentation (architecture, prerequisites, run instructions, demo scenarios) is added in Part 12.
+
 
