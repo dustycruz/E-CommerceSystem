@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ECommerceSystem.CatalogService/ECommerceSystem.CatalogService.csproj" />
+    <Project Path="src/ECommerceSystem.InventoryService/ECommerceSystem.InventoryService.csproj" />
+    <Project Path="src/ECommerceSystem.OrderService/ECommerceSystem.OrderService.csproj" />
+    <Project Path="src/ECommerceSystem.PaymentService/ECommerceSystem.PaymentService.csproj" />
+    <Project Path="src/ECommerceSystem.Shared/ECommerceSystem.Shared.csproj" />
+  </Folder>
+  <Folder Name="/web/">
+    <Project Path="web/ECommerceSystem.Storefront/ECommerceSystem.Storefront.csproj" />
+  </Folder>
+</Solution>
