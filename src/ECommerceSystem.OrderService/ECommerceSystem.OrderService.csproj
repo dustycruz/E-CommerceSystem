@@ -8,11 +8,38 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<PackageReference Include="Asp.Versioning.Mvc" Version="10.0.1" />
+		<PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" Version="10.0.1" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0">
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 			<PrivateAssets>all</PrivateAssets>
 		</PackageReference>
 		<PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.0" />
+		<PackageReference Include="Microsoft.Extensions.ApiDescription.Client" Version="10.0.0">
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+			<PrivateAssets>all</PrivateAssets>
+		</PackageReference>
+		<PackageReference Include="Microsoft.OpenApi" Version="2.7.5" />
+		<PackageReference Include="NSwag.ApiDescription.Client" Version="14.7.1">
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+			<PrivateAssets>all</PrivateAssets>
+		</PackageReference>
+		<PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.7" />
+	</ItemGroup>
+
+	<!--
+    Contract-first typed client: NSwag generates ICatalogApiClient / CatalogApiClient from the
+    committed contract at build time (output in obj\, never committed).
+    UseBaseUrl:false            -> no hard-coded URL; HttpClient.BaseAddress comes from DI configuration.
+    GenerateClientInterfaces    -> ICatalogApiClient, registered with AddHttpClient<ICatalogApiClient, CatalogApiClient>.
+    JsonLibrary:SystemTextJson  -> no Newtonsoft.Json dependency.
+  -->
+	<ItemGroup>
+		<OpenApiReference Include="..\..\contracts\catalog.yaml"
+						  CodeGenerator="NSwagCSharp"
+						  Namespace="ECommerceSystem.OrderService.Clients.Catalog.Generated"
+						  ClassName="CatalogApiClient"
+						  Options="/UseBaseUrl:false /GenerateClientInterfaces:true /JsonLibrary:SystemTextJson /OperationGenerationMode:SingleClientFromOperationId /ExceptionClass:CatalogApiException /GenerateNullableReferenceTypes:true /DateTimeType:System.DateTimeOffset" />
 	</ItemGroup>
 
 	<ItemGroup>
