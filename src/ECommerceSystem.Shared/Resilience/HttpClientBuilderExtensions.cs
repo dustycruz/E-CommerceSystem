@@ -12,7 +12,9 @@ namespace ECommerceSystem.Shared.Resilience;
 ///  2. the standard resilience pipeline:
 ///     total timeout 10 s -> retry 3x (exponential back-off + jitter; 5xx/408/429/network errors) ->
 ///     circuit breaker (sampling 10 s, at least 2x the attempt timeout) -> attempt timeout 2 s.
-///  Every retry, attempt timeout and circuit change is logged with the correlation id.
+///  Retry-After headers are deliberately ignored so the back-off is always exponential + jitter and the
+///  retries fit inside the total timeout. Every retry, attempt timeout and circuit change is logged with
+///  the correlation id.
 /// </summary>
 public static class HttpClientBuilderExtensions
 {
@@ -44,6 +46,11 @@ public static class HttpClientBuilderExtensions
                 options.Retry.BackoffType = DelayBackoffType.Exponential;
                 options.Retry.UseJitter = true;
                 options.Retry.Delay = TimeSpan.FromMilliseconds(500);
+
+                // Do NOT wait for a server's Retry-After header (e.g. "Retry-After: 5" on our 503 Problem Details):
+                // our own exponential back-off + jitter keeps all retries inside the 10 s total timeout.
+                options.Retry.ShouldRetryAfterHeader = false;
+
                 options.Retry.OnRetry = args =>
                 {
                     var reason = args.Outcome.Exception is not null
