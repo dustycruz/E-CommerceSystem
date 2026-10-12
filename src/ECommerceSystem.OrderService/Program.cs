@@ -1,12 +1,20 @@
 using System.Text.Json.Serialization;
+using Asp.Versioning;
+using Asp.Versioning.ApiExplorer;
 using ECommerceSystem.OrderService.Clients.Catalog;
 using ECommerceSystem.OrderService.Clients.Catalog.Generated;
 using ECommerceSystem.OrderService.Clients.Payments;
 using ECommerceSystem.OrderService.Data;
+using ECommerceSystem.OrderService.Outbox;
+using ECommerceSystem.OrderService.Services;
+using ECommerceSystem.OrderService.Swagger;
 using ECommerceSystem.Shared.Correlation;
+using ECommerceSystem.Shared.Messaging;
 using ECommerceSystem.Shared.Problems;
 using ECommerceSystem.Shared.Resilience;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Swashbuckle.AspNetCore.SwaggerGen;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,18 +33,23 @@ builder.Services.AddDbContext<OrderDbContext>(options =>
 // ---------- Cross-cutting (Shared) ----------
 builder.Services.AddECommerceCorrelation();
 builder.Services.AddECommerceProblemDetails();
+builder.Services.AddRabbitMqMessaging(builder.Configuration);
 
 // ---------- Typed HttpClients via IHttpClientFactory (never "new HttpClient()") ----------
-// NSwag-generated Catalog client: base URL from configuration, correlation + resilience pipeline.
 builder.Services
     .AddHttpClient<ICatalogApiClient, CatalogApiClient>(client => client.BaseAddress = new Uri(catalogBaseUrl))
     .AddECommerceHttpPipeline();
 builder.Services.AddScoped<ICatalogGateway, CatalogGateway>();
 
-// Hand-written Payment client: same pipeline.
 builder.Services
     .AddHttpClient<IPaymentClient, PaymentClient>(client => client.BaseAddress = new Uri(paymentBaseUrl))
     .AddECommerceHttpPipeline();
+
+// ---------- Application services ----------
+builder.Services.AddScoped<IOrderService, OrderService>();
+
+// ---------- Transactional outbox publisher (hosted background service) ----------
+builder.Services.AddHostedService<OutboxPublisher>();
 
 // ---------- MVC + JSON (enums as strings everywhere) ----------
 builder.Services
@@ -45,11 +58,31 @@ builder.Services
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
+// ---------- API versioning: /orders/v{version} ----------
+builder.Services
+    .AddApiVersioning(options =>
+    {
+        options.DefaultApiVersion = new ApiVersion(1, 0);
+        options.AssumeDefaultVersionWhenUnspecified = false;
+        options.ReportApiVersions = true;
+        options.ApiVersionReader = new UrlSegmentApiVersionReader();
+    })
+    .AddMvc()
+    .AddApiExplorer(options =>
+    {
+        options.GroupNameFormat = "'v'VVV";
+        options.SubstituteApiVersionInUrl = true;
+    });
+
+// ---------- Swagger (Swashbuckle 10) ----------
+builder.Services.AddTransient<IConfigureOptions<SwaggerGenOptions>, ConfigureSwaggerOptions>();
+builder.Services.AddSwaggerGen();
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
-    // Creates ECommerceOrderDb and applies all migrations on a clean machine.
+    // Creates ECommerceOrderDb and applies all migrations on a clean machine (before the outbox publisher starts).
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
     db.Database.Migrate();
@@ -59,18 +92,33 @@ if (app.Environment.IsDevelopment())
 app.UseECommerceCorrelation();
 app.UseECommerceProblemDetails();
 
+app.UseSwagger();
+app.UseSwaggerUI(options =>
+{
+    var provider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
+    foreach (var description in provider.ApiVersionDescriptions)
+    {
+        options.SwaggerEndpoint(
+            $"/swagger/{description.GroupName}/swagger.json",
+            $"Orders API {description.GroupName.ToUpperInvariant()}");
+    }
+
+    options.DocumentTitle = "ECommerceSystem Orders API";
+});
+
 app.MapControllers();
 
 app.MapGet("/", () => Results.Ok(new
 {
     service = "ECommerceSystem.OrderService",
-    status = "running"
+    status = "running",
+    swagger = "/swagger"
 }))
 .ExcludeFromDescription();
 
 if (app.Environment.IsDevelopment())
 {
-    // Development-only diagnostics to test the outbound clients (hidden from Swagger, absent in Production).
+    // Development-only diagnostics for the outbound clients (hidden from Swagger, absent in Production).
     app.MapGet("/_diag/catalog/{productId:int}", async (int productId, ICatalogGateway catalogGateway, CancellationToken cancellationToken) =>
             Results.Ok(await catalogGateway.GetProductAsync(productId, cancellationToken)))
         .ExcludeFromDescription();
