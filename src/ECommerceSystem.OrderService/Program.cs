@@ -4,8 +4,10 @@ using Asp.Versioning.ApiExplorer;
 using ECommerceSystem.OrderService.Clients.Catalog;
 using ECommerceSystem.OrderService.Clients.Catalog.Generated;
 using ECommerceSystem.OrderService.Clients.Payments;
+using ECommerceSystem.OrderService.Consumers;
 using ECommerceSystem.OrderService.Data;
 using ECommerceSystem.OrderService.Outbox;
+using ECommerceSystem.OrderService.Saga;
 using ECommerceSystem.OrderService.Services;
 using ECommerceSystem.OrderService.Swagger;
 using ECommerceSystem.Shared.Correlation;
@@ -47,9 +49,11 @@ builder.Services
 
 // ---------- Application services ----------
 builder.Services.AddScoped<IOrderService, OrderService>();
+builder.Services.AddScoped<OrderSagaOrchestrator>();
 
-// ---------- Transactional outbox publisher (hosted background service) ----------
+// ---------- Background services: transactional outbox publisher + saga consumer ----------
 builder.Services.AddHostedService<OutboxPublisher>();
+builder.Services.AddHostedService<InventoryResultsConsumer>();
 
 // ---------- MVC + JSON (enums as strings everywhere) ----------
 builder.Services
@@ -82,7 +86,7 @@ var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
-    // Creates ECommerceOrderDb and applies all migrations on a clean machine (before the outbox publisher starts).
+    // Creates ECommerceOrderDb and applies all migrations on a clean machine (before the background services start).
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
     db.Database.Migrate();
