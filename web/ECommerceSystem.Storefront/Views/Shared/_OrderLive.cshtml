@@ -1,0 +1,80 @@
+@model OrderDto
+@{
+    var isFinal = Display.IsFinal(Model.Status);
+    var steps = OrderTracker.Build(Model);
+    var (heroTitle, heroText) = Model.Status switch
+    {
+        OrderStatuses.Pending => ("Order received", "We are checking stock with the Inventory Service."),
+        OrderStatuses.StockReserved => ("Stock reserved", $"Your items are held. Charging card ending {Model.CardLast4} next."),
+        OrderStatuses.PaymentProcessing => ("Processing your payment", $"Your items are reserved. Charging {Display.Money(Model.TotalAmount)} to the card ending {Model.CardLast4}."),
+        OrderStatuses.Confirmed => ("Your order is confirmed!", "Payment captured and stock committed. Thank you for shopping with us."),
+        OrderStatuses.Cancelled => ("This order was cancelled", Model.FailureReason ?? "The order could not be completed."),
+        _ => (Display.StatusLabel(Model.Status), string.Empty)
+    };
+}
+<div id="order-live"
+     data-final="@(isFinal ? "true" : "false")"
+     data-status="@Model.Status"
+     data-status-label="@Display.StatusLabel(Model.Status)"
+     data-live-url="@Url.Action("Live", "Orders", new { id = Model.Id })">
+
+    <div class="order-hero hero-@Display.StatusCss(Model.Status)">
+        <div class="order-hero-icon"><i data-lucide="@Display.StatusIcon(Model.Status)"></i></div>
+        <div class="order-hero-body">
+            <div class="order-hero-title">@heroTitle</div>
+            <div class="order-hero-text">@heroText</div>
+        </div>
+        <div class="order-hero-side">
+            <partial name="_StatusBadge" model="Model.Status" />
+            @if (!isFinal)
+            {
+                <span class="live-dot"><span></span> Updating live</span>
+            }
+        </div>
+    </div>
+
+    <div class="tracker" aria-label="Order progress">
+        @foreach (var step in steps)
+        {
+            <div class="tracker-step @step.State">
+                <div class="tracker-dot">
+                    @if (step.State == "done")
+                    {
+                        <i data-lucide="check"></i>
+                    }
+                    else if (step.State == "failed")
+                    {
+                        <i data-lucide="x"></i>
+                    }
+                    else
+                    {
+                        <i data-lucide="@step.Icon"></i>
+                    }
+                </div>
+                <div class="tracker-label">@step.Label</div>
+            </div>
+        }
+    </div>
+
+    <div class="content-card">
+        <h3 class="card-title"><i data-lucide="list-checks"></i> Order timeline</h3>
+        <p class="muted small-text">Every step of the saga, as recorded by the Order Service.</p>
+        <ol class="timeline">
+            @for (var i = 0; i < Model.History.Count; i++)
+            {
+                var entry = Model.History[i];
+                var isLast = i == Model.History.Count - 1;
+                <li class="timeline-step @(isLast ? "current" : "done") dot-@Display.StatusCss(entry.Status)">
+                    <div class="timeline-dot">@(i + 1)</div>
+                    <div class="timeline-body">
+                        <div class="timeline-head">
+                            <span class="timeline-title">@Display.StatusLabel(entry.Status)</span>
+                            <span class="timeline-time">@Display.LocalTime(entry.OccurredAtUtc)</span>
+                        </div>
+                        <div class="timeline-text">@entry.Description</div>
+                    </div>
+                </li>
+            }
+        </ol>
+    </div>
+</div>

@@ -1,0 +1,115 @@
+@model CheckoutViewModel
+@{
+    ViewData["Title"] = "Checkout";
+}
+
+<a class="back-link" asp-controller="Cart" asp-action="Index"><i data-lucide="arrow-left"></i> Back to cart</a>
+
+<div class="page-head">
+    <div>
+        <h1 class="page-title">Checkout</h1>
+        <p class="page-subtitle">No account needed &mdash; you can track this order later with your email address.</p>
+    </div>
+</div>
+
+@if (Model.Problem is not null)
+{
+    <partial name="_ProblemAlert" model="Model.Problem" />
+}
+
+@if (Model.Cart.CatalogError is not null)
+{
+    <div class="notice"><i data-lucide="cloud-off"></i> Live prices are unavailable right now. The Order Service checks every price again when you place the order.</div>
+}
+
+@if (Model.Cart.HasUnavailableItems)
+{
+    <div class="alert-box alert-warn" role="alert">
+        <i data-lucide="ban"></i>
+        <div>
+            <strong>Your cart contains a product that is not available for sale.</strong>
+            <div>The Order Service will reject the order (422) until you <a asp-controller="Cart" asp-action="Index">remove it from your cart</a>.</div>
+        </div>
+    </div>
+}
+
+<div class="checkout-grid">
+    <form asp-action="Index" method="post">
+        <div asp-validation-summary="ModelOnly"></div>
+
+        <section class="panel-card">
+            <div class="panel-head"><i data-lucide="user"></i> 1 &middot; Your details</div>
+            <div class="panel-body">
+                <div class="form-row">
+                    <div class="form-field">
+                        <label asp-for="Form.CustomerName" class="form-label"></label>
+                        <input asp-for="Form.CustomerName" class="form-control" autocomplete="name" placeholder="Juan Dela Cruz" />
+                        <span asp-validation-for="Form.CustomerName" class="text-validation"></span>
+                    </div>
+                    <div class="form-field">
+                        <label asp-for="Form.CustomerEmail" class="form-label"></label>
+                        <input asp-for="Form.CustomerEmail" class="form-control" autocomplete="email" placeholder="juan@example.com" />
+                        <span asp-validation-for="Form.CustomerEmail" class="text-validation"></span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel-card">
+            <div class="panel-head"><i data-lucide="credit-card"></i> 2 &middot; Payment</div>
+            <div class="panel-body">
+                <label asp-for="Form.CardNumber" class="form-label"></label>
+                <input asp-for="Form.CardNumber" class="form-control card-input" inputmode="numeric" maxlength="16" autocomplete="off" placeholder="16 digits, no spaces" />
+                <span asp-validation-for="Form.CardNumber" class="text-validation"></span>
+                <div class="test-cards">
+                    <span class="form-hint">Test cards:</span>
+                    <button type="button" class="chip" data-fill-card="4242424242424242"><i data-lucide="circle-check"></i> 4242 &hellip; 4242 succeeds</button>
+                    <button type="button" class="chip" data-fill-card="4000000000000002"><i data-lucide="circle-x"></i> 4000 &hellip; 0002 is declined</button>
+                </div>
+                <p class="form-hint"><i data-lucide="lock"></i> Only the last 4 digits are stored. The card number is cleared after the payment step.</p>
+            </div>
+        </section>
+
+        <section class="panel-card">
+            <div class="panel-head ink"><i data-lucide="flask-conical"></i> 3 &middot; Demo options</div>
+            <div class="panel-body">
+                <label class="check-card">
+                    <input asp-for="Form.SimulateFailureAfterPayment" type="checkbox" />
+                    <span>
+                        <strong>Simulate a failure after payment</strong>
+                        <span class="form-hint">The card is charged, then the saga fails on purpose and compensates: refund the payment, release the stock, cancel the order.</span>
+                    </span>
+                </label>
+            </div>
+        </section>
+
+        <button type="submit" class="btn btn-brand btn-lg btn-block" data-busy-text="Placing your order...">
+            <i data-lucide="lock"></i> Place order &middot; @Display.Money(Model.Cart.Total)
+        </button>
+        <p class="form-hint center-hint">Placing the order starts the saga: reserve stock, charge the card, confirm.</p>
+    </form>
+
+    <aside class="sticky-aside">
+        <div class="panel-card">
+            <div class="panel-head"><i data-lucide="receipt"></i> Your order</div>
+            <div class="panel-body">
+                @foreach (var line in Model.Cart.Lines)
+                {
+                    <div class="summary-line">
+                        <span>
+                            @(line.Product?.Name ?? $"Product #{line.ProductId}")
+                            <span class="qty">@line.Quantity &times; @(line.Product is null ? "price unavailable" : Display.Money(line.Product.Price))</span>
+                        </span>
+                        <strong>@(line.Product is null ? "-" : Display.Money(line.LineTotal))</strong>
+                    </div>
+                }
+                <div class="summary-row total"><span>Total</span><span>@Display.Money(Model.Cart.Total)</span></div>
+                <a class="btn btn-outline-brand btn-block" asp-controller="Cart" asp-action="Index"><i data-lucide="pencil"></i> Edit cart</a>
+            </div>
+        </div>
+    </aside>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

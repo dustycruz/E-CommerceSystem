@@ -1,0 +1,69 @@
+@model ProductDetailsViewModel
+@{
+    ViewData["Title"] = Model.Product?.Name ?? "Product";
+}
+
+<a class="back-link" asp-controller="Home" asp-action="Index"><i data-lucide="arrow-left"></i> All products</a>
+
+@if (Model.Product is null)
+{
+    var empty = Model.Error is null
+        ? new EmptyStateViewModel("search-x", "Product not found", "It may have been removed from the catalog.", "Back to the shop", Url.Action("Index", "Home"))
+        : new EmptyStateViewModel("cloud-off", "We can't load this product right now", Model.Error + " Please try again in a moment.", "Back to the shop", Url.Action("Index", "Home"));
+
+    <div class="content-card"><partial name="_EmptyState" model="empty" /></div>
+}
+else
+{
+    var product = Model.Product;
+    var stock = Display.Stock(Model.Available);
+
+    <div class="product-detail">
+        <div class="product-media detail-media">
+            <img src="@product.ImageUrl" alt="@product.Name"
+                 onerror="this.parentElement.classList.add('no-image'); this.remove();" />
+            <span class="media-fallback"><i data-lucide="image"></i></span>
+        </div>
+
+        <div class="content-card detail-info">
+            <span class="product-tag static">@product.Category</span>
+            <h1 class="detail-name">@product.Name</h1>
+            <div class="product-sku">SKU @product.Sku</div>
+            <div class="detail-price">@Display.Money(product.Price)</div>
+            @if (stock is not null)
+            {
+                <span class="stock-pill @stock.Css"><i data-lucide="@stock.Icon"></i> @stock.Text</span>
+            }
+            <p class="detail-desc">@product.Description</p>
+
+            @if (product.IsActive)
+            {
+                <form asp-controller="Cart" asp-action="Add" method="post" class="qty-row">
+                    <input type="hidden" name="productId" value="@product.Id" />
+                    <div>
+                        <label class="form-label" for="quantity">Quantity</label>
+                        <div class="qty-control">
+                            <button type="button" class="qty-btn" data-qty-step="-1" aria-label="Decrease quantity"><i data-lucide="minus"></i></button>
+                            <input id="quantity" name="quantity" type="number" class="form-control qty-input" value="1" min="1" max="100" />
+                            <button type="button" class="qty-btn" data-qty-step="1" aria-label="Increase quantity"><i data-lucide="plus"></i></button>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-brand btn-lg"><i data-lucide="shopping-cart"></i> Add to cart</button>
+                </form>
+            }
+            else
+            {
+                <div class="alert-box alert-warn">
+                    <i data-lucide="ban"></i>
+                    <div><strong>Not available for sale</strong><div>This product is currently inactive in the catalog.</div></div>
+                </div>
+            }
+
+            <ul class="info-list">
+                <li><i data-lucide="badge-check"></i> Price confirmed again by the Catalog Service when you order</li>
+                <li><i data-lucide="package-check"></i> Stock shown is a live hint &mdash; the Inventory Service makes the final check</li>
+                <li><i data-lucide="lock"></i> Test payments only &mdash; no real money is charged</li>
+            </ul>
+        </div>
+    </div>
+}

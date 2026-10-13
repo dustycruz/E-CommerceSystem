@@ -1,0 +1,61 @@
+@model StatusViewModel
+@{
+    ViewData["Title"] = "Service status";
+}
+
+<div class="page-head">
+    <div>
+        <h1 class="page-title">Service status</h1>
+        <p class="page-subtitle">@Model.UpCount of @Model.Services.Count services are answering &middot; checked @Display.LocalTime(Model.CheckedAtUtc)</p>
+    </div>
+    <a class="btn btn-outline-brand" asp-action="Index"><i data-lucide="refresh-cw"></i> Check again</a>
+</div>
+
+<div class="service-grid">
+    <div class="service-card">
+        <div class="service-head">
+            <span class="service-name"><i data-lucide="store"></i> Storefront</span>
+            <span class="service-state"><span class="dot"></span> UP</span>
+        </div>
+        <div class="service-meta">Port 5000 &middot; this website</div>
+        <div class="service-links">
+            <a asp-controller="Home" asp-action="Index"><i data-lucide="link"></i> Shop</a>
+        </div>
+    </div>
+
+    @foreach (var service in Model.Services)
+    {
+        <div class="service-card @(service.IsUp ? string.Empty : "down")">
+            <div class="service-head">
+                <span class="service-name"><i data-lucide="server"></i> @service.Name</span>
+                <span class="service-state"><span class="dot"></span> @(service.IsUp ? "UP" : "DOWN")</span>
+            </div>
+            <div class="service-meta">Port @service.Port &middot; @(service.IsUp ? $"answered in {service.ElapsedMs} ms" : service.Error)</div>
+            <div class="service-links">
+                <a href="@service.SwaggerUrl" target="_blank" rel="noopener"><i data-lucide="external-link"></i> Swagger</a>
+                <a href="@service.BaseUrl" target="_blank" rel="noopener"><i data-lucide="link"></i> Root</a>
+            </div>
+        </div>
+    }
+
+    <div class="service-card neutral">
+        <div class="service-head">
+            <span class="service-name"><i data-lucide="rabbit"></i> RabbitMQ</span>
+            <span class="service-state"><span class="dot"></span> Broker</span>
+        </div>
+        <div class="service-meta">Port 5672 (AMQP) &middot; 15672 (management UI)</div>
+        <div class="service-links">
+            <a href="http://localhost:15672" target="_blank" rel="noopener"><i data-lucide="external-link"></i> Management UI</a>
+        </div>
+    </div>
+</div>
+
+<div class="content-card">
+    <h3 class="card-title"><i data-lucide="info"></i> What happens when a service is down?</h3>
+    <ul class="info-list plain">
+        <li><i data-lucide="store"></i> <span><strong>Catalog down:</strong> the shop shows a friendly message; checkout answers 503 and nothing is charged.</span></li>
+        <li><i data-lucide="package"></i> <span><strong>Inventory down:</strong> product cards hide stock hints; new orders wait safely in RabbitMQ until Inventory is back.</span></li>
+        <li><i data-lucide="credit-card"></i> <span><strong>Payment down:</strong> the order waits in "Processing payment" and is retried (1 s, 2 s, 4 s); if Payment never returns, the stock is released and the order is cancelled.</span></li>
+        <li><i data-lucide="receipt"></i> <span><strong>Order down:</strong> checkout and My orders show "Order Service is unavailable"; your cart is kept.</span></li>
+    </ul>
+</div>

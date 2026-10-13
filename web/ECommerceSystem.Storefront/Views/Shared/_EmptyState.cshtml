@@ -1,0 +1,10 @@
+@model EmptyStateViewModel
+<div class="empty-state">
+    <i data-lucide="@Model.Icon"></i>
+    <h3>@Model.Title</h3>
+    <p>@Model.Text</p>
+    @if (!string.IsNullOrEmpty(Model.ActionText) && !string.IsNullOrEmpty(Model.ActionUrl))
+    {
+        <a class="btn btn-brand" href="@Model.ActionUrl">@Model.ActionText</a>
+    }
+</div>

@@ -1,0 +1,4 @@
+@model string
+<span class="badge-status @Display.StatusCss(Model)">
+    <i data-lucide="@Display.StatusIcon(Model)"></i> @Display.StatusLabel(Model)
+</span>

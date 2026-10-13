@@ -1,0 +1,137 @@
+@model CartViewModel
+@{
+    ViewData["Title"] = "Cart";
+    var empty = new EmptyStateViewModel("shopping-cart", "Your cart is empty", "Browse the shop and add a product to get started.", "Start shopping", Url.Action("Index", "Home"));
+}
+
+<div class="page-head">
+    <div>
+        <h1 class="page-title">Your cart</h1>
+        <p class="page-subtitle">@(Model.IsEmpty ? "Nothing here yet." : $"{Model.ItemCount} item(s) ready for checkout.")</p>
+    </div>
+    @if (!Model.IsEmpty)
+    {
+        <form asp-action="Clear" method="post" data-confirm="Remove every item from your cart?">
+            <button type="submit" class="btn btn-outline-brand"><i data-lucide="trash-2"></i> Empty cart</button>
+        </form>
+    }
+</div>
+
+@if (Model.CatalogError is not null)
+{
+    <div class="alert-box alert-warn" role="alert">
+        <i data-lucide="cloud-off"></i>
+        <div>
+            <strong>Live prices are unavailable right now.</strong>
+            <div>@Model.CatalogError Your cart is safe; prices appear again once the Catalog Service answers.</div>
+        </div>
+    </div>
+}
+
+@if (Model.IsEmpty)
+{
+    <div class="content-card"><partial name="_EmptyState" model="empty" /></div>
+}
+else
+{
+    <div class="cart-grid">
+        <div class="content-card flush">
+            <div class="table-wrap">
+                <table class="table-brand">
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th class="text-end hide-sm">Price</th>
+                            <th>Quantity</th>
+                            <th class="text-end">Total</th>
+                            <th class="text-end"><span class="visually-hidden">Remove</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var line in Model.Lines)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="cart-item">
+                                        <div class="product-media cart-thumb @(line.Product is null ? "no-image" : string.Empty)">
+                                            @if (line.Product is not null)
+                                            {
+                                                <img src="@line.Product.ImageUrl" alt="@line.Product.Name"
+                                                     onerror="this.parentElement.classList.add('no-image'); this.remove();" />
+                                            }
+                                            <span class="media-fallback"><i data-lucide="image"></i></span>
+                                        </div>
+                                        <div>
+                                            @if (line.Product is null)
+                                            {
+                                                <div class="product-name">Product #@line.ProductId</div>
+                                                <div class="product-sku">Details unavailable</div>
+                                            }
+                                            else
+                                            {
+                                                <a class="product-name" asp-controller="Products" asp-action="Details" asp-route-id="@line.ProductId">@line.Product.Name</a>
+                                                <div class="product-sku">@line.Product.Sku</div>
+                                                @if (!line.Product.IsActive)
+                                                {
+                                                    <span class="stock-pill stock-out"><i data-lucide="ban"></i> Not available for sale</span>
+                                                }
+                                            }
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="text-end hide-sm">
+                                    @if (line.Product is null)
+                                    {
+                                        <span class="muted">&ndash;</span>
+                                    }
+                                    else
+                                    {
+                                        @Display.Money(line.Product.Price)
+                                    }
+                                </td>
+                                <td>
+                                    <form asp-action="Update" method="post" class="qty-form">
+                                        <input type="hidden" name="productId" value="@line.ProductId" />
+                                        <input type="number" name="quantity" value="@line.Quantity" min="0" max="100"
+                                               class="form-control qty-input" aria-label="Quantity" data-autosubmit />
+                                    </form>
+                                </td>
+                                <td class="text-end">
+                                    @if (line.Product is null)
+                                    {
+                                        <span class="muted">&ndash;</span>
+                                    }
+                                    else
+                                    {
+                                        <strong>@Display.Money(line.LineTotal)</strong>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    <form asp-action="Remove" method="post">
+                                        <input type="hidden" name="productId" value="@line.ProductId" />
+                                        <button type="submit" class="icon-btn" aria-label="Remove from cart"><i data-lucide="x"></i></button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <aside class="sticky-aside">
+            <div class="panel-card">
+                <div class="panel-head"><i data-lucide="receipt"></i> Order summary</div>
+                <div class="panel-body">
+                    <div class="summary-row"><span>Items</span><span>@Model.ItemCount</span></div>
+                    <div class="summary-row total"><span>Total</span><span>@Display.Money(Model.Total)</span></div>
+                    <p class="form-hint"><i data-lucide="badge-check"></i> Prices are confirmed again by the Catalog Service when you place the order.</p>
+                    <div class="summary-actions">
+                        <a class="btn btn-brand btn-block" asp-controller="Checkout" asp-action="Index"><i data-lucide="lock"></i> Checkout</a>
+                        <a class="btn btn-outline-brand btn-block" asp-controller="Home" asp-action="Index"><i data-lucide="store"></i> Continue shopping</a>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+}

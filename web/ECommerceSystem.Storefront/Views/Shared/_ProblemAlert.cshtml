@@ -1,0 +1,28 @@
+@model ApiProblem
+@{
+    (string Title, string Hint) text = Model.Status switch
+    {
+        400 => ("Please check your order", "Some details were not accepted. See the messages below."),
+        404 => ("Not found", "It may have been removed."),
+        409 => ("This order changed in the meantime", "Reload the page and try again."),
+        422 => ("A product in your cart can't be sold right now", "Remove it from your cart, then place the order again."),
+        503 => ("One of our services is unavailable", "If you were placing an order, nothing was charged and your cart is kept. Please try again in a moment."),
+        _ => ("Something went wrong", "Please try again in a moment.")
+    };
+    var serverSide = Model.Status >= 500;
+}
+<div class="alert-box @(serverSide ? "alert-warn" : "alert-error")" role="alert">
+    <i data-lucide="@(serverSide ? "cloud-off" : "triangle-alert")"></i>
+    <div>
+        <strong>@text.Title</strong>
+        @if (!string.IsNullOrWhiteSpace(Model.Detail))
+        {
+            <div>@Model.Detail</div>
+        }
+        <div>@text.Hint</div>
+        @if (!string.IsNullOrWhiteSpace(Model.CorrelationId))
+        {
+            <div class="trace">HTTP @Model.Status &middot; Trace ID <code>@Model.CorrelationId</code></div>
+        }
+    </div>
+</div>

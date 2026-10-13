@@ -1,8 +1,93 @@
-﻿@{
-    ViewData["Title"] = "Home Page";
+﻿@model HomeIndexViewModel
+@{
+    ViewData["Title"] = "Shop";
+    var noMatches = new EmptyStateViewModel("search-x", "No products match your search", "Try a different word, or clear the search box.");
+    var emptyCategory = new EmptyStateViewModel("package-open", "No products here yet", "This category has no products for sale right now.", "Show all products", Url.Action("Index", "Home"));
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+<section class="shop-hero">
+    <div>
+        <span class="hero-badge"><i data-lucide="flask-conical"></i> Demo store &middot; test payments only</span>
+        <h1>Tech gear, checked out the reliable way.</h1>
+        <p>Prices come live from the Catalog Service. Every order runs through our saga &mdash; stock is reserved, your card is charged, and you can watch each step happen.</p>
+        <div class="hero-cta">
+            <a class="btn btn-white" href="#products"><i data-lucide="store"></i> Shop products</a>
+            <a class="btn btn-outline-white" asp-controller="Orders" asp-action="Index"><i data-lucide="package"></i> Track my orders</a>
+        </div>
+    </div>
+    <div class="hero-mark" aria-hidden="true"><i data-lucide="shopping-bag"></i></div>
+</section>
+
+<div class="steps-band">
+    <div class="step-item">
+        <span class="step-num">1</span>
+        <div><strong>Place your order</strong><span>Prices confirmed by the Catalog</span></div>
+    </div>
+    <div class="step-item">
+        <span class="step-num">2</span>
+        <div><strong>Stock reserved</strong><span>Inventory holds your items</span></div>
+    </div>
+    <div class="step-item">
+        <span class="step-num">3</span>
+        <div><strong>Payment</strong><span>Your card is charged</span></div>
+    </div>
+    <div class="step-item">
+        <span class="step-num">4</span>
+        <div><strong>Confirmed</strong><span>Stock committed &mdash; done</span></div>
+    </div>
 </div>
+
+@if (Model.CatalogError is not null)
+{
+    <div class="alert-box alert-warn" role="alert">
+        <i data-lucide="cloud-off"></i>
+        <div>
+            <strong>We can't load the products right now.</strong>
+            <div>@Model.CatalogError Please try again in a moment.</div>
+        </div>
+        <a class="btn btn-outline-brand alert-action" asp-action="Index"><i data-lucide="refresh-cw"></i> Try again</a>
+    </div>
+}
+else
+{
+    <div class="shop-toolbar" id="products">
+        <div class="chip-row">
+            <a class="chip @(Model.SelectedCategory is null ? "active" : string.Empty)" asp-action="Index">All</a>
+            @foreach (var category in Model.Categories)
+            {
+                <a class="chip @(string.Equals(category, Model.SelectedCategory, StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)"
+                   asp-action="Index" asp-route-category="@category">@category</a>
+            }
+        </div>
+        <div class="search-box">
+            <i data-lucide="search"></i>
+            <input type="search" class="form-control" placeholder="Search products..." aria-label="Search products"
+                   data-card-filter="#productGrid" data-empty-target="#noMatches" />
+        </div>
+    </div>
+
+    @if (!Model.StockKnown)
+    {
+        <div class="notice">
+            <i data-lucide="info"></i>
+            Stock levels are temporarily unavailable. You can still order &mdash; the Inventory Service checks stock when your order is placed.
+        </div>
+    }
+
+    @if (Model.Products.Count == 0)
+    {
+        <div class="content-card"><partial name="_EmptyState" model="emptyCategory" /></div>
+    }
+    else
+    {
+        <div class="product-grid" id="productGrid">
+            @foreach (var card in Model.Products)
+            {
+                <partial name="_ProductCard" model="card" />
+            }
+        </div>
+        <div class="content-card" id="noMatches" hidden>
+            <partial name="_EmptyState" model="noMatches" />
+        </div>
+    }
+}

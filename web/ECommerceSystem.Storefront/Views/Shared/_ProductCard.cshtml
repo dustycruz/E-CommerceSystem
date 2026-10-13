@@ -1,0 +1,34 @@
+@model ProductCardViewModel
+@{
+    var product = Model.Product;
+    var stock = Display.Stock(Model.Available);
+    var returnUrl = Context.Request.Path + Context.Request.QueryString;
+}
+<article class="product-card"
+         data-href="@Url.Action("Details", "Products", new { id = product.Id })"
+         data-search="@product.Name @product.Sku @product.Category"
+         tabindex="0">
+    <div class="product-media">
+        <img src="@product.ImageUrl" alt="@product.Name" loading="lazy"
+             onerror="this.parentElement.classList.add('no-image'); this.remove();" />
+        <span class="media-fallback"><i data-lucide="image"></i></span>
+        <span class="product-tag">@product.Category</span>
+    </div>
+    <div class="product-body">
+        <div class="product-name">@product.Name</div>
+        <div class="product-sku">@product.Sku</div>
+        <div class="product-price">@Display.Money(product.Price)</div>
+        @if (stock is not null)
+        {
+            <span class="stock-pill @stock.Css"><i data-lucide="@stock.Icon"></i> @stock.Text</span>
+        }
+        <form asp-controller="Cart" asp-action="Add" method="post" class="product-actions">
+            <input type="hidden" name="productId" value="@product.Id" />
+            <input type="hidden" name="quantity" value="1" />
+            <input type="hidden" name="returnUrl" value="@returnUrl" />
+            <button type="submit" class="btn btn-brand btn-block">
+                <i data-lucide="shopping-cart"></i> Add to cart
+            </button>
+        </form>
+    </div>
+</article>

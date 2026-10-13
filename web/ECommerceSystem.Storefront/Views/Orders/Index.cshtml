@@ -1,0 +1,102 @@
+@model OrdersIndexViewModel
+@{
+    ViewData["Title"] = "My orders";
+    var askEmail = new EmptyStateViewModel("mail", "Find your orders", "Enter the email address you used at checkout.");
+    var noOrders = new EmptyStateViewModel("package", "No orders yet", "There are no orders for this email address.", "Start shopping", Url.Action("Index", "Home"));
+}
+
+<div class="page-head">
+    <div>
+        <h1 class="page-title">My orders</h1>
+        <p class="page-subtitle">No account needed &mdash; your orders are found by the email you used at checkout.</p>
+    </div>
+</div>
+
+<div class="content-card">
+    <form method="get" asp-action="Index" class="lookup-form">
+        <div class="search-box grow">
+            <i data-lucide="mail"></i>
+            <input type="email" name="email" value="@Model.Email" class="form-control" placeholder="you@example.com" aria-label="Email address" required />
+        </div>
+        <button type="submit" class="btn btn-brand"><i data-lucide="search"></i> Find my orders</button>
+    </form>
+    @if (Model.EmailError is not null)
+    {
+        <span class="text-validation">@Model.EmailError</span>
+    }
+</div>
+
+@if (Model.Problem is not null)
+{
+    <partial name="_ProblemAlert" model="Model.Problem" />
+}
+else if (Model.Email is null)
+{
+    <div class="content-card"><partial name="_EmptyState" model="askEmail" /></div>
+}
+else if (Model.EmailError is null && Model.Orders.Count == 0)
+{
+    <div class="content-card"><partial name="_EmptyState" model="noOrders" /></div>
+}
+else if (Model.Orders.Count > 0)
+{
+    <div class="stat-grid">
+        <div class="stat-card">
+            <div class="stat-icon ink"><i data-lucide="package"></i></div>
+            <div><div class="stat-value">@Model.Orders.Count</div><div class="stat-label">Orders</div></div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon info"><i data-lucide="loader-circle"></i></div>
+            <div><div class="stat-value">@Model.InProgressCount</div><div class="stat-label">In progress</div></div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon success"><i data-lucide="circle-check"></i></div>
+            <div><div class="stat-value">@Model.ConfirmedCount</div><div class="stat-label">Confirmed</div></div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon"><i data-lucide="circle-x"></i></div>
+            <div><div class="stat-value">@Model.CancelledCount</div><div class="stat-label">Cancelled</div></div>
+        </div>
+    </div>
+
+    <div class="content-card flush">
+        <div class="list-head">
+            <h3 class="card-title"><i data-lucide="package"></i> Orders for @Model.Email</h3>
+            <div class="search-box">
+                <i data-lucide="search"></i>
+                <input type="search" class="form-control" placeholder="Filter orders..." aria-label="Filter orders" data-table-filter="#ordersTable" />
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table class="table-brand" id="ordersTable">
+                <thead>
+                    <tr>
+                        <th>Order</th>
+                        <th class="hide-sm">Placed</th>
+                        <th class="hide-sm">Items</th>
+                        <th class="text-end">Total</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var order in Model.Orders)
+                    {
+                        <tr data-href="@Url.Action("Details", "Orders", new { id = order.Id })" tabindex="0">
+                            <td><strong>#@Display.ShortId(order.Id)</strong></td>
+                            <td class="hide-sm">@Display.LocalDate(order.CreatedAtUtc)</td>
+                            <td class="hide-sm">@order.ItemCount</td>
+                            <td class="text-end"><strong>@Display.Money(order.TotalAmount)</strong></td>
+                            <td>
+                                <partial name="_StatusBadge" model="order.Status" />
+                                @if (!string.IsNullOrWhiteSpace(order.FailureReason))
+                                {
+                                    <div class="row-note">@order.FailureReason</div>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
