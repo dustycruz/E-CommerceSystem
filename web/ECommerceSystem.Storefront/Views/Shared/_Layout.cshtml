@@ -1,5 +1,6 @@
 ﻿@* File: web/ECommerceSystem.Storefront/Views/Shared/_Layout.cshtml
-   Sidebar app shell adapted from the DGCS Enrollment System, red-and-white palette, Lucide icons. *@
+   Sidebar app shell adapted from the DGCS Enrollment System, red-and-white palette, Lucide icons.
+   Branding: "Target" wordmark + bullseye. Student project - not affiliated with Target Corporation. *@
 @inject CartService Cart
 @{
     var controller = ViewContext.RouteData.Values["controller"]?.ToString() ?? string.Empty;
@@ -10,8 +11,10 @@
     var cartCount = Cart.ItemCount;
     var customer = Cart.GetCustomer();
     var hasName = !string.IsNullOrWhiteSpace(customer?.Name);
-    var shopperName = hasName ? customer!.Name : "Guest shopper";
-    var shopperEmail = string.IsNullOrWhiteSpace(customer?.Email) ? "No account needed" : customer!.Email;
+    var hasEmail = !string.IsNullOrWhiteSpace(customer?.Email);
+    var firstName = hasName ? customer!.Name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries)[0] : "guest";
+    var greeting = $"Hi, {firstName}";
+    var accountLine = hasEmail ? customer!.Email : "Track your orders";
     var successMessage = TempData["Success"] as string;
     var errorMessage = TempData["Error"] as string;
 }
@@ -20,26 +23,39 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - E-Commerce System</title>
+    <title>@ViewData["Title"] : Target</title>
+    <link rel="icon" type="image/svg+xml" href="~/favicon.svg" />
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/brand.css" asp-append-version="true" />
 </head>
 <body>
     <div class="app-shell">
         <aside class="sidebar" id="sidebar">
-            <a class="sidebar-brand" asp-controller="Home" asp-action="Index">
-                <span class="brand-mark"><i data-lucide="shopping-bag"></i></span>
-                <span>
-                    <span class="title">E-Commerce System</span>
-                    <span class="subtitle">Online tech store</span>
-                </span>
+            <a class="sidebar-brand brand-target" asp-controller="Home" asp-action="Index" aria-label="Target home">
+                <svg class="bullseye" viewBox="0 0 100 100" aria-hidden="true">
+                    <circle class="bull-ring" cx="50" cy="50" r="50" />
+                    <circle class="bull-gap" cx="50" cy="50" r="33.4" />
+                    <circle class="bull-dot" cx="50" cy="50" r="17.1" />
+                </svg>
+                <span class="brand-word">Target</span>
             </a>
 
-            <a class="user-card @ActiveIf("Orders")" asp-controller="Orders" asp-action="Index" title="My orders">
-                <span class="avatar">@Display.Initials(hasName ? shopperName : string.Empty)</span>
+            <a class="user-card @ActiveIf("Orders")" asp-controller="Orders" asp-action="Index"
+               title="@(hasEmail ? customer!.Email : "My orders")">
+                <span class="avatar">
+                    @if (hasName)
+                    {
+                        @Display.Initials(customer!.Name)
+                    }
+                    else
+                    {
+                        <i data-lucide="user"></i>
+                    }
+                </span>
                 <span class="user-meta">
-                    <span class="name">@shopperName</span>
-                    <span class="uid">@shopperEmail</span>
+                    <span class="name">@greeting</span>
+                    <span class="uid">@accountLine</span>
                 </span>
                 <i class="user-go" data-lucide="chevron-right"></i>
             </a>
@@ -81,11 +97,6 @@
             </nav>
 
             <div class="sidebar-footer">
-                <div class="test-card-note">
-                    <strong><i data-lucide="flask-conical"></i> Test payments only</strong>
-                    4242 4242 4242 4242 succeeds<br />
-                    4000 0000 0000 0002 is declined
-                </div>
                 <form asp-controller="Cart" asp-action="Reset" method="post"
                       data-confirm="Start over? This empties your cart and forgets your name and email on this browser.">
                     <button type="submit" class="sign-out"><i data-lucide="rotate-ccw"></i> Start over</button>
@@ -120,8 +131,11 @@
             </div>
 
             <footer class="app-footer">
-                <span>E-Commerce System &middot; Group midterm project &middot; Dusty Cruz, Laurence Mirandilla, CJ Bello</span>
-                <span>Demo store &middot; no real payments</span>
+                <span>&copy; @DateTime.Now.Year Target &middot; Student project, not affiliated with Target Corporation.</span>
+                <span class="footer-links">
+                    <a asp-controller="Orders" asp-action="Index">Track an order</a>
+                    <a asp-controller="Status" asp-action="Index">Service status</a>
+                </span>
             </footer>
         </main>
     </div>
